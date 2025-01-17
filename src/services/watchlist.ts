@@ -24,6 +24,7 @@ import {
 } from './firebase';
 import { MediaItem } from '../store/slices/mediaSlice';
 import { store } from '../store/store';
+import { SerializedWatchlistItem } from '../store/slices/watchlistSlice';
 
 // Create a new watchlist
 export const createWatchlist = async (name: string, creatorId: string) => {
@@ -222,13 +223,17 @@ export const subscribeToWatchlist = (watchlistId: string, callback: (data: DBWat
   
   return onSnapshot(watchlistRef, (doc) => {
     if (doc.exists()) {
-      callback(doc.data() as DBWatchlist);
+      const data = doc.data();
+      callback({
+        ...data,
+        id: doc.id,
+      } as DBWatchlist);
     }
   });
 };
 
 // Subscribe to watchlist items
-export const subscribeToWatchlistItems = (watchlistId: string, callback: (items: DBWatchlistItem[]) => void) => {
+export const subscribeToWatchlistItems = (watchlistId: string, callback: (items: SerializedWatchlistItem[]) => void) => {
   // Validate watchlistId
   if (!watchlistId) {
     console.error('Invalid watchlistId provided to subscribeToWatchlistItems');
@@ -243,8 +248,8 @@ export const subscribeToWatchlistItems = (watchlistId: string, callback: (items:
     console.log('Watchlist items snapshot received, docs:', snapshot.docs.length);
     const items = snapshot.docs.map(doc => {
       const data = doc.data();
-      // Only include defined values
-      return {
+      // Convert to SerializedWatchlistItem with proper timestamp handling
+      const serializedItem: SerializedWatchlistItem = {
         id: doc.id,
         watchlistId: data.watchlistId,
         title: data.title,
@@ -252,11 +257,17 @@ export const subscribeToWatchlistItems = (watchlistId: string, callback: (items:
         overview: data.overview,
         type: data.type,
         addedBy: data.addedBy,
-        addedAt: data.addedAt,
-        ...(data.rating !== undefined && { rating: data.rating }),
-        ...(data.comment !== undefined && { comment: data.comment }),
-        ...(data.finishedAt !== undefined && { finishedAt: data.finishedAt }),
-      } as DBWatchlistItem;
+        addedAt: data.addedAt ? data.addedAt.toMillis() : Date.now(),
+      };
+
+      // Add optional fields if they exist
+      if (data.rating !== undefined) serializedItem.rating = data.rating;
+      if (data.comment !== undefined) serializedItem.comment = data.comment;
+      if (data.finishedAt && data.finishedAt !== null) {
+        serializedItem.finishedAt = data.finishedAt.toMillis();
+      }
+
+      return serializedItem;
     });
     console.log('Processed watchlist items:', items.length);
     callback(items);

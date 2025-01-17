@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
 import { subscribeToWatchlist, subscribeToWatchlistItems } from '../services/watchlist';
-import { setActiveWatchlist, setWatchlistItems, SerializedWatchlist } from '../store/slices/watchlistSlice';
+import { setActiveWatchlist, setWatchlistItems, SerializedWatchlist, SerializedWatchlistItem } from '../store/slices/watchlistSlice';
 import { setUser } from '../store/slices/authSlice';
 import { WatchlistSetup } from './watchlist/WatchlistSetup';
 import { MediaList } from './media/MediaList';
@@ -27,7 +27,7 @@ const convertWatchlistToSerialized = (watchlist: DBWatchlist): SerializedWatchli
   lastTvShowAddedBy: watchlist.lastTvShowAddedBy,
   lastMovieAddedBy: watchlist.lastMovieAddedBy,
   lastAddedBy: watchlist.lastAddedBy,
-  createdAt: watchlist.createdAt?.toMillis() ?? Date.now(),
+  createdAt: watchlist.createdAt ? watchlist.createdAt.toMillis() : Date.now(),
 });
 
 export const Home: React.FC = () => {
@@ -133,13 +133,8 @@ export const Home: React.FC = () => {
             });
             dispatch(setActiveWatchlist(serializedWatchlist));
 
-            const itemsUnsubscribe = subscribeToWatchlistItems(watchlistId, (items: DBWatchlistItem[]) => {
-              const serializedItems = items.map(item => ({
-                ...item,
-                addedAt: item.addedAt.toMillis(),
-                finishedAt: item.finishedAt?.toMillis()
-              }));
-              dispatch(setWatchlistItems(serializedItems));
+            const itemsUnsubscribe = subscribeToWatchlistItems(watchlistId, (items) => {
+              dispatch(setWatchlistItems(items));
             });
 
             unsubscribeRefs.current.items = itemsUnsubscribe;
