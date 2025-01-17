@@ -27,27 +27,7 @@ import {
 import { store } from '../store/store';
 import { setUser } from '../store/slices/authSlice';
 import { MediaItem } from '../store/slices/mediaSlice';
-
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.REACT_APP_FIREBASE_APP_ID
-};
-
-// Initialize Firebase with error handling
-let app: ReturnType<typeof initializeApp>;
-let db: ReturnType<typeof getFirestore>;
-let auth: ReturnType<typeof getAuth>;
-
-// Collection references
-let watchlistsRef: CollectionReference;
-let watchlistItemsRef: CollectionReference;
-let usersRef: CollectionReference;
-let pendingInvitesRef: CollectionReference;
+import { setActiveWatchlist, setWatchlistItems } from '../store/slices/watchlistSlice';
 
 // Types
 export interface DBWatchlist {
@@ -94,26 +74,60 @@ export interface DBUser {
   isWatchlistCreator: boolean;
 }
 
-// Collection references with enhanced error handling
-const createCollectionRef = (path: string) => {
-  if (!db) {
-    console.error('Firestore not initialized');
-    throw new Error('Firestore not initialized');
-  }
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID
+};
+
+console.log('Firebase config:', {
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId
+});
+
+// Initialize Firebase
+console.log('Starting Firebase initialization...');
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Collection references
+const watchlistsRef = collection(db, 'watchlists');
+const watchlistItemsRef = collection(db, 'watchlistItems');
+const usersRef = collection(db, 'users');
+const pendingInvitesRef = collection(db, 'pendingInvites');
+
+// Configure Google Auth Provider
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+// Initialize Firebase Auth persistence
+let isInitialized = false;
+
+export const initializeFirebase = async () => {
+  if (isInitialized) return;
   
   try {
-    console.log(`Creating collection reference for: ${path}`);
-    const collRef = collection(db, path);
-    console.log(`Collection reference created for: ${path}`);
-    return collRef;
-  } catch (error) {
-    console.error(`Error creating collection reference for ${path}:`, error);
+    await setPersistence(auth, browserLocalPersistence);
+    console.log('Auth persistence set to local');
+    isInitialized = true;
+    console.log('Firebase initialization completed successfully');
+  } catch (error: unknown) {
+    console.error('Error setting auth persistence:', error);
     throw error;
   }
 };
 
 // User management
 export const createOrUpdateUser = async (user: FirebaseUser) => {
+  await initializeFirebase();
+  
   if (!user.uid) {
     console.error('Invalid user object:', user);
     throw new Error('Invalid user object: missing UID');
@@ -129,6 +143,20 @@ export const createOrUpdateUser = async (user: FirebaseUser) => {
       exists: userDoc.exists(),
       path: userDoc.ref.path
     });
+
+    const firstName = user.displayName?.split(' ')[0] || '';
+    console.log('Updating Redux store with user data:', {
+      id: user.uid,
+      hasEmail: !!user.email,
+      displayName: firstName
+    });
+    
+    // Update Redux store first
+    store.dispatch(setUser({
+      id: user.uid,
+      email: user.email || '',
+      displayName: firstName,
+    }));
 
     if (!userDoc.exists()) {
       console.log('Creating new user document...');
@@ -147,19 +175,6 @@ export const createOrUpdateUser = async (user: FirebaseUser) => {
       console.log('User document exists, no need to create');
     }
 
-    const firstName = user.displayName?.split(' ')[0] || '';
-    console.log('Updating Redux store with user data:', {
-      id: user.uid,
-      hasEmail: !!user.email,
-      displayName: firstName
-    });
-    
-    store.dispatch(setUser({
-      id: user.uid,
-      email: user.email || '',
-      displayName: firstName,
-    }));
-
     return true;
   } catch (error: any) {
     console.error('Error in createOrUpdateUser:', error);
@@ -167,47 +182,10 @@ export const createOrUpdateUser = async (user: FirebaseUser) => {
   }
 };
 
-// Configure Google Auth Provider
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account'
-});
-
-// Initialize Firebase asynchronously
-const initializeFirebase = async () => {
-  try {
-    console.log('Initializing Firebase...');
-    
-    // Initialize Firebase
-    initializeApp(firebaseConfig);
-    
-    // Initialize Auth with persistence
-    auth = getAuth();
-    await setPersistence(auth, browserLocalPersistence);
-    
-    // Initialize Firestore
-    db = getFirestore();
-    
-    // Initialize collection references
-    watchlistsRef = createCollectionRef('watchlists');
-    watchlistItemsRef = createCollectionRef('watchlistItems');
-    usersRef = createCollectionRef('users');
-    pendingInvitesRef = createCollectionRef('pendingInvites');
-    
-    console.log('Firebase initialized successfully');
-  } catch (error) {
-    console.error('Error initializing Firebase:', error);
-    throw error;
-  }
-};
-
-// Initialize Firebase immediately
-initializeFirebase().catch(error => {
-  console.error('Failed to initialize Firebase:', error);
-});
-
 // Auth functions
 export const signInWithGoogle = async () => {
+  await initializeFirebase();
+  
   try {
     console.log('Starting Google sign-in process...');
     const result = await signInWithPopup(auth, googleProvider);
@@ -219,14 +197,41 @@ export const signInWithGoogle = async () => {
   }
 };
 
+// Keep track of active listeners
+const activeListeners: (() => void)[] = [];
+
+export const registerListener = (unsubscribe: () => void) => {
+  activeListeners.push(unsubscribe);
+};
+
+export const unregisterListener = (unsubscribe: () => void) => {
+  const index = activeListeners.indexOf(unsubscribe);
+  if (index > -1) {
+    activeListeners.splice(index, 1);
+  }
+};
+
 export const signOut = async () => {
   try {
     console.log('Starting sign out process...');
+    
+    // First sign out from Firebase
     await firebaseSignOut(auth);
+    
+    // Then clear Redux state
+    store.dispatch(setUser(null));
+    store.dispatch(setActiveWatchlist(null));
+    store.dispatch(setWatchlistItems([]));
+    
     console.log('Sign out successful');
   } catch (error: any) {
     console.error('Error signing out:', error);
-    throw error;
+    // Even if there's an error, we want to make sure the user is signed out
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {
+      console.error('Error in final sign out attempt:', e);
+    }
   }
 };
 

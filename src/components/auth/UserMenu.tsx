@@ -1,34 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Avatar, Menu, MenuItem, IconButton, Typography, Box } from '@mui/material';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
-import { auth } from '../../services/firebase';
-import { useNavigate } from 'react-router-dom';
+import { signOut } from '../../services/firebase';
 
 export const UserMenu: React.FC = () => {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const user = useSelector((state: RootState) => state.auth.user);
-  const navigate = useNavigate();
   const open = Boolean(anchorEl);
 
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+  const handleClick = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    if (isSigningOut) return;
     setAnchorEl(event.currentTarget);
-  };
+  }, [isSigningOut]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
+    if (isSigningOut) return;
     setAnchorEl(null);
-  };
+  }, [isSigningOut]);
 
-  const handleSignOut = async () => {
+  const handleSignOut = useCallback(async () => {
+    if (isSigningOut) return;
+    
+    setIsSigningOut(true);
     handleClose();
-    await auth.signOut();
-    navigate('/login', { replace: true });
-  };
+    
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+      setIsSigningOut(false);
+    }
+  }, [isSigningOut, handleClose]);
 
   if (!user) return null;
-
-  // Get user's Google profile picture URL
-  const photoURL = auth.currentUser?.photoURL;
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -38,13 +44,13 @@ export const UserMenu: React.FC = () => {
         aria-controls={open ? 'user-menu' : undefined}
         aria-haspopup="true"
         aria-expanded={open ? 'true' : undefined}
+        disabled={isSigningOut}
       >
         <Avatar
-          src={photoURL || undefined}
           alt={user.displayName}
           sx={{ width: 32, height: 32 }}
         >
-          {!photoURL && user.displayName?.[0]}
+          {user.displayName?.[0]}
         </Avatar>
       </IconButton>
       <Menu
@@ -73,8 +79,8 @@ export const UserMenu: React.FC = () => {
         <MenuItem sx={{ minWidth: 150 }}>
           <Typography variant="body2">{user.displayName}</Typography>
         </MenuItem>
-        <MenuItem onClick={handleSignOut}>
-          Sign out
+        <MenuItem onClick={handleSignOut} disabled={isSigningOut}>
+          {isSigningOut ? 'Signing out...' : 'Sign out'}
         </MenuItem>
       </Menu>
     </Box>

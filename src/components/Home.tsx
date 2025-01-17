@@ -1,36 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Typography, Fab, Tooltip } from '@mui/material';
+import { Box, Container, Tooltip, Fab, Typography } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
 import { subscribeToWatchlist, subscribeToWatchlistItems } from '../services/watchlist';
 import { setActiveWatchlist, setWatchlistItems, SerializedWatchlist } from '../store/slices/watchlistSlice';
+import { setUser } from '../store/slices/authSlice';
 import { WatchlistSetup } from './watchlist/WatchlistSetup';
 import { MediaList } from './media/MediaList';
 import { NowPlaying } from './media/NowPlaying';
 import { PopcornLoader } from './common/PopcornLoader';
-import { DBWatchlist, DBWatchlistItem, usersRef } from '../services/firebase';
+import { DBWatchlist, DBWatchlistItem, usersRef, auth } from '../services/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { useMinimumLoadingTime } from '../hooks/useMinimumLoadingTime';
 import { AddMediaModal } from './media/AddMediaModal';
-import { PartnerStatus } from './watchlist/PartnerStatus';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // Helper function to convert Firestore timestamps to numbers
-const convertWatchlistToSerialized = (watchlist: DBWatchlist): SerializedWatchlist => {
-  console.log('Converting watchlist to serialized format:', watchlist);
-  return {
-    id: watchlist.id,
-    name: watchlist.name,
-    users: watchlist.users,
-    currentTvShow: watchlist.currentTvShow,
-    currentMovie: watchlist.currentMovie,
-    lastTvShowAddedBy: watchlist.lastTvShowAddedBy,
-    lastMovieAddedBy: watchlist.lastMovieAddedBy,
-    lastAddedBy: watchlist.lastAddedBy,
-    createdAt: watchlist.createdAt.toMillis(),
-  };
-};
+const convertWatchlistToSerialized = (watchlist: DBWatchlist): SerializedWatchlist => ({
+  id: watchlist.id,
+  name: watchlist.name,
+  users: watchlist.users,
+  currentTvShow: watchlist.currentTvShow,
+  currentMovie: watchlist.currentMovie,
+  lastTvShowAddedBy: watchlist.lastTvShowAddedBy,
+  lastMovieAddedBy: watchlist.lastMovieAddedBy,
+  lastAddedBy: watchlist.lastAddedBy,
+  createdAt: watchlist.createdAt.toMillis(),
+});
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -41,164 +39,203 @@ export const Home: React.FC = () => {
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const activeWatchlist = useSelector((state: RootState) => state.watchlist.activeWatchlist);
 
+  // Store unsubscribe functions in refs
+  const unsubscribeRefs = React.useRef<{
+    auth?: (() => void);
+    user?: (() => void);
+    watchlist?: (() => void);
+    items?: (() => void);
+  }>({});
+
+  // Effect for auth state changes
   useEffect(() => {
-    if (!currentUser) {
-      console.log('No user found, redirecting to login');
-      navigate('/login');
+    let isMounted = true;
+
+    // Set up auth state listener
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (!isMounted) return;
+
+      if (!firebaseUser) {
+        // Clean up subscriptions first
+        Object.entries(unsubscribeRefs.current).forEach(([key, unsub]) => {
+          if (unsub && key !== 'auth') {
+            unsub();
+            unsubscribeRefs.current[key as keyof typeof unsubscribeRefs.current] = undefined;
+          }
+        });
+
+        // Then clear Redux state
+        dispatch(setUser(null));
+        dispatch(setActiveWatchlist(null));
+        dispatch(setWatchlistItems([]));
+
+        // Finally navigate
+        navigate('/login', { replace: true });
+      }
+    });
+
+    unsubscribeRefs.current.auth = unsubscribe;
+
+    return () => {
+      isMounted = false;
+      if (unsubscribeRefs.current.auth) {
+        unsubscribeRefs.current.auth();
+        unsubscribeRefs.current.auth = undefined;
+      }
+    };
+  }, [dispatch, navigate]);
+
+  // Effect for user document subscription
+  useEffect(() => {
+    if (!currentUser || !auth.currentUser) {
+      setIsLoading(false);
       return;
     }
 
-    console.log('Setting up subscriptions for user:', currentUser.id);
-    let unsubscribeUser: (() => void) | null = null;
-    let unsubscribeWatchlist: (() => void) | null = null;
-    let unsubscribeItems: (() => void) | null = null;
+    // Clean up existing subscriptions before setting up new ones
+    if (unsubscribeRefs.current.user) {
+      unsubscribeRefs.current.user();
+      unsubscribeRefs.current.user = undefined;
+    }
+    if (unsubscribeRefs.current.watchlist) {
+      unsubscribeRefs.current.watchlist();
+      unsubscribeRefs.current.watchlist = undefined;
+    }
+    if (unsubscribeRefs.current.items) {
+      unsubscribeRefs.current.items();
+      unsubscribeRefs.current.items = undefined;
+    }
 
-    const setupSubscriptions = async () => {
-      try {
-        console.log('Starting subscription setup...');
-        // First, subscribe to the user document to get activeWatchlist
-        unsubscribeUser = onSnapshot(doc(usersRef, currentUser.id), async (userDoc) => {
-          console.log('User document updated:', {
-            exists: userDoc.exists(),
-            data: userDoc.data(),
-            path: userDoc.ref.path
-          });
-          
-          if (!userDoc.exists()) {
-            console.log('No user document found');
-            setIsLoading(false);
-            return;
-          }
+    // Set up user document listener
+    const userUnsubscribe = onSnapshot(
+      doc(usersRef, currentUser.id),
+      (userDoc) => {
+        if (!userDoc.exists()) {
+          setIsLoading(false);
+          return;
+        }
 
-          const userData = userDoc.data();
-          const activeWatchlistId = userData.activeWatchlist;
-          console.log('Active watchlist ID from user document:', activeWatchlistId);
+        const userData = userDoc.data();
+        const watchlistId = userData.activeWatchlist;
 
-          if (!activeWatchlistId) {
-            console.log('No active watchlist found in user document');
+        if (!watchlistId) {
+          dispatch(setActiveWatchlist(null));
+          dispatch(setWatchlistItems([]));
+          setIsLoading(false);
+          return;
+        }
+
+        const watchlistUnsubscribe = subscribeToWatchlist(watchlistId, (watchlist: DBWatchlist) => {
+          if (watchlist) {
+            const serializedWatchlist = convertWatchlistToSerialized({
+              ...watchlist,
+              id: watchlistId
+            });
+            dispatch(setActiveWatchlist(serializedWatchlist));
+
+            const itemsUnsubscribe = subscribeToWatchlistItems(watchlistId, (items: DBWatchlistItem[]) => {
+              const serializedItems = items.map(item => ({
+                ...item,
+                addedAt: item.addedAt.toMillis(),
+                finishedAt: item.finishedAt?.toMillis()
+              }));
+              dispatch(setWatchlistItems(serializedItems));
+            });
+
+            unsubscribeRefs.current.items = itemsUnsubscribe;
+          } else {
             dispatch(setActiveWatchlist(null));
             dispatch(setWatchlistItems([]));
-            setIsLoading(false);
-            return;
           }
-
-          // Clean up previous subscriptions before setting up new ones
-          if (unsubscribeWatchlist) {
-            console.log('Cleaning up previous watchlist subscription');
-            unsubscribeWatchlist();
-          }
-          if (unsubscribeItems) {
-            console.log('Cleaning up previous items subscription');
-            unsubscribeItems();
-          }
-
-          console.log('Setting up watchlist subscription for:', activeWatchlistId);
-          // Subscribe to active watchlist
-          unsubscribeWatchlist = subscribeToWatchlist(activeWatchlistId, (watchlist: DBWatchlist) => {
-            console.log('Watchlist updated:', {
-              id: watchlist?.id,
-              name: watchlist?.name,
-              users: watchlist?.users
-            });
-            
-            if (watchlist) {
-              const serializedWatchlist = convertWatchlistToSerialized({
-                ...watchlist,
-                id: activeWatchlistId // Ensure the ID is set
-              });
-              console.log('Dispatching serialized watchlist:', serializedWatchlist);
-              dispatch(setActiveWatchlist(serializedWatchlist));
-              
-              // Subscribe to watchlist items
-              console.log('Setting up items subscription for watchlist:', activeWatchlistId);
-              unsubscribeItems = subscribeToWatchlistItems(activeWatchlistId, (items: DBWatchlistItem[]) => {
-                console.log('Watchlist items updated:', {
-                  count: items.length,
-                  items: items.map(item => ({
-                    id: item.id,
-                    title: item.title,
-                    type: item.type
-                  }))
-                });
-                const serializedItems = items.map(item => ({
-                  id: item.id,
-                  title: item.title,
-                  posterPath: item.posterPath,
-                  overview: item.overview,
-                  type: item.type,
-                  addedBy: item.addedBy,
-                  watchlistId: item.watchlistId,
-                  addedAt: item.addedAt ? item.addedAt.toMillis() : Date.now(),
-                  ...(item.rating && { rating: item.rating }),
-                  ...(item.comment && { comment: item.comment }),
-                  ...(item.finishedAt && { finishedAt: item.finishedAt.toMillis() })
-                }));
-                dispatch(setWatchlistItems(serializedItems));
-              });
-            } else {
-              console.log('No watchlist data found');
-              dispatch(setActiveWatchlist(null));
-              dispatch(setWatchlistItems([]));
-            }
-            setIsLoading(false);
-          });
+          setIsLoading(false);
         });
-      } catch (error) {
-        console.error('Error setting up subscriptions:', error);
+
+        unsubscribeRefs.current.watchlist = watchlistUnsubscribe;
+      },
+      (error) => {
+        console.error('Error listening to user document:', error);
         setIsLoading(false);
       }
-    };
+    );
 
-    setupSubscriptions();
+    unsubscribeRefs.current.user = userUnsubscribe;
 
     return () => {
-      console.log('Cleaning up all subscriptions');
-      if (unsubscribeUser) unsubscribeUser();
-      if (unsubscribeWatchlist) unsubscribeWatchlist();
-      if (unsubscribeItems) unsubscribeItems();
+      if (unsubscribeRefs.current.user) {
+        unsubscribeRefs.current.user();
+        unsubscribeRefs.current.user = undefined;
+      }
+      if (unsubscribeRefs.current.watchlist) {
+        unsubscribeRefs.current.watchlist();
+        unsubscribeRefs.current.watchlist = undefined;
+      }
+      if (unsubscribeRefs.current.items) {
+        unsubscribeRefs.current.items();
+        unsubscribeRefs.current.items = undefined;
+      }
     };
-  }, [currentUser, dispatch, navigate]);
+  }, [currentUser, dispatch]);
+
+  if (shouldShowLoader) {
+    return (
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+        bgcolor="#1a1a1a"
+      >
+        <PopcornLoader />
+      </Box>
+    );
+  }
+
+  if (!activeWatchlist && currentUser) {
+    return <WatchlistSetup />;
+  }
+
+  if (!currentUser) {
+    return null;
+  }
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      {isLoading ? (
-        <Box
-          display="flex"
-          justifyContent="center"
-          alignItems="center"
-          minHeight="100vh"
-          bgcolor="#1a1a1a"
+    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+      {activeWatchlist && (
+        <Typography 
+          variant="h5" 
+          component="h1" 
+          sx={{ 
+            mb: 3,
+            color: 'text.secondary',
+            fontWeight: 500,
+            textAlign: 'center'
+          }}
         >
-          <PopcornLoader />
-        </Box>
-      ) : !activeWatchlist ? (
-        <WatchlistSetup />
-      ) : (
-        <Container maxWidth="lg" sx={{ mt: 15, mb: 5 }}>
-          <NowPlaying />
-          <MediaList />
-          {isAddModalOpen && (
-            <AddMediaModal
-              open={isAddModalOpen}
-              onClose={() => setIsAddModalOpen(false)}
-            />
-          )}
-          <Tooltip title="Add to Watchlist" arrow>
-            <Fab
-              color="primary"
-              aria-label="add"
-              onClick={() => setIsAddModalOpen(true)}
-              sx={{
-                position: 'fixed',
-                bottom: 16,
-                right: 16,
-              }}
-            >
-              <AddIcon />
-            </Fab>
-          </Tooltip>
-        </Container>
+          {activeWatchlist.name}
+        </Typography>
       )}
-    </Box>
+      <Box sx={{ mb: 4 }}>
+        <NowPlaying />
+      </Box>
+      <MediaList />
+      <Tooltip title="Add to watchlist">
+        <Fab
+          color="primary"
+          aria-label="add"
+          onClick={() => setIsAddModalOpen(true)}
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+          }}
+        >
+          <AddIcon />
+        </Fab>
+      </Tooltip>
+      <AddMediaModal
+        open={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+      />
+    </Container>
   );
 }; 

@@ -18,6 +18,7 @@ import { PartnerStatus } from '../watchlist/PartnerStatus';
 
 export const AppHeader: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
+  const activeWatchlist = useSelector((state: RootState) => state.watchlist.activeWatchlist);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [imgError, setImgError] = useState(false);
 
@@ -84,8 +85,13 @@ export const AppHeader: React.FC = () => {
             )}
           </Box>
 
-          {/* Partner Status Section */}
-          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          {/* Center Section with Partner Status */}
+          <Box sx={{ 
+            flex: 1, 
+            display: 'flex', 
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
             <PartnerStatus />
           </Box>
 

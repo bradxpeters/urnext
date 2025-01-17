@@ -7,7 +7,7 @@ import {
   CircularProgress,
   Alert,
 } from '@mui/material';
-import { signInWithGoogle } from '../../services/firebase';
+import { signInWithGoogle, createOrUpdateUser } from '../../services/firebase';
 import { useNavigate } from 'react-router-dom';
 import GoogleIcon from '@mui/icons-material/Google';
 
@@ -24,8 +24,10 @@ export const Login: React.FC = () => {
     setError(null);
     try {
       console.log('Starting Google sign-in process...');
-      await signInWithGoogle();
-      console.log('Sign-in successful, navigating to home');
+      const user = await signInWithGoogle();
+      console.log('Sign-in successful, creating/updating user document');
+      await createOrUpdateUser(user);
+      console.log('User document updated, navigating to home');
       navigate('/', { replace: true });
     } catch (error: any) {
       console.error('Sign-in error:', error);
@@ -56,53 +58,46 @@ export const Login: React.FC = () => {
   return (
     <Container maxWidth="sm">
       <Box
-        sx={{
-          marginTop: 8,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        minHeight="100vh"
+        textAlign="center"
       >
-        {!imgError ? (
-          <img 
-            src={`${process.env.PUBLIC_URL}/urnext-logo.png`}
-            alt="urNext" 
+        <Box mb={4}>
+          <img
+            src="/urnext-logo.png"
+            alt="urNext Logo"
             style={{ 
-              height: '160px',
-              marginBottom: '2rem',
-              cursor: 'pointer'
+              width: '200px', 
+              height: 'auto',
+              display: imgError ? 'none' : 'block' 
             }}
             onError={() => setImgError(true)}
           />
-        ) : (
-          <Typography variant="h3" component="h1" gutterBottom>
-            urNext
-          </Typography>
-        )}
+        </Box>
 
         {error && (
-          <Alert severity="error" sx={{ width: '100%', mb: 2 }}>
-            {error}
-          </Alert>
+          <Box mb={3} width="100%">
+            <Alert severity="error">{error}</Alert>
+          </Box>
         )}
 
         <Button
           variant="contained"
-          size="large"
+          color="primary"
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          startIcon={isLoading ? <CircularProgress size={20} /> : <GoogleIcon />}
-          sx={{
-            mt: 3,
-            mb: 2,
-            py: 1.5,
-            px: 4,
-            borderRadius: 2,
-            textTransform: 'none',
-            fontSize: '1.1rem',
-          }}
+          startIcon={!isLoading && <GoogleIcon />}
+          size="large"
+          sx={{ minWidth: 200 }}
         >
-          {isLoading ? 'Signing in...' : 'Sign in with Google'}
+          {isLoading ? (
+            <CircularProgress size={24} color="inherit" />
+          ) : (
+            'Sign in with Google'
+          )}
         </Button>
       </Box>
     </Container>
