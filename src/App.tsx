@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from './store/store';
 import { Box } from '@mui/material';
 import Login from './components/auth/Login';
+import { Signup } from './components/auth/Signup';
 import { Home } from './components/Home';
 import { AppHeader } from './components/common/AppHeader';
 import { PopcornLoader } from './components/common/PopcornLoader';
@@ -38,6 +39,10 @@ function App() {
         <Route
           path="/login"
           element={!user ? <Login /> : <Navigate to="/" replace />}
+        />
+        <Route
+          path="/signup"
+          element={!user ? <Signup /> : <Navigate to="/" replace />}
         />
       </Routes>
     </>

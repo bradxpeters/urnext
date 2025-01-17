@@ -14,11 +14,12 @@ import {
 } from '@mui/material';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { usersRef } from '../../services/firebase';
+import { doc, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { usersRef, pendingInvitesRef } from '../../services/firebase';
 import { inviteToWatchlist } from '../../services/watchlist';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import GroupIcon from '@mui/icons-material/Group';
+import MailIcon from '@mui/icons-material/Mail';
 
 export const PartnerStatus: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
@@ -28,13 +29,36 @@ export const PartnerStatus: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [partnerInfo, setPartnerInfo] = useState<{ email: string; displayName: string } | null>(null);
+  const [hasPendingInvite, setHasPendingInvite] = useState(false);
+  const [pendingInviteEmail, setPendingInviteEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || !activeWatchlist) return;
 
     // Find partner's info from the watchlist users array
     const partnerId = activeWatchlist.users.find(id => id !== user.id);
-    if (!partnerId) return;
+    if (!partnerId) {
+      // Check for pending invites
+      const checkPendingInvites = async () => {
+        const pendingQuery = query(
+          pendingInvitesRef,
+          where('watchlistId', '==', activeWatchlist.id)
+        );
+        const pendingSnapshot = await getDocs(pendingQuery);
+        
+        if (!pendingSnapshot.empty) {
+          const pendingInvite = pendingSnapshot.docs[0].data();
+          setHasPendingInvite(true);
+          setPendingInviteEmail(pendingInvite.email);
+        } else {
+          setHasPendingInvite(false);
+          setPendingInviteEmail(null);
+        }
+      };
+      
+      checkPendingInvites();
+      return;
+    }
 
     // Subscribe to partner's user document
     const unsubscribe = onSnapshot(doc(usersRef, partnerId), (doc) => {
@@ -70,12 +94,26 @@ export const PartnerStatus: React.FC = () => {
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        width: '100%',
+        position: 'relative',
+        left: '-20px'
+      }}>
         {partnerInfo ? (
           <Chip
             icon={<GroupIcon />}
             label={`Watching with ${partnerInfo.displayName.split(' ')[0]}`}
             color="primary"
+            variant="outlined"
+          />
+        ) : hasPendingInvite ? (
+          <Chip
+            icon={<MailIcon />}
+            label={`Invite sent to ${pendingInviteEmail}`}
+            color="info"
             variant="outlined"
           />
         ) : (

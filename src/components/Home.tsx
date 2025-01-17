@@ -27,7 +27,7 @@ const convertWatchlistToSerialized = (watchlist: DBWatchlist): SerializedWatchli
   lastTvShowAddedBy: watchlist.lastTvShowAddedBy,
   lastMovieAddedBy: watchlist.lastMovieAddedBy,
   lastAddedBy: watchlist.lastAddedBy,
-  createdAt: watchlist.createdAt.toMillis(),
+  createdAt: watchlist.createdAt?.toMillis() ?? Date.now(),
 });
 
 export const Home: React.FC = () => {
@@ -201,20 +201,29 @@ export const Home: React.FC = () => {
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
       {activeWatchlist && (
-        <Typography 
-          variant="h5" 
-          component="h1" 
-          sx={{ 
-            mb: 3,
-            color: 'text.secondary',
-            fontWeight: 500,
-            textAlign: 'center'
-          }}
-        >
-          {activeWatchlist.name}
-        </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', mb: 3 }}>
+          <Typography 
+            variant="h5" 
+            component="h1" 
+            sx={{ 
+              color: 'text.secondary',
+              fontWeight: 500,
+              textAlign: 'center',
+              position: 'relative',
+              left: '-10px'
+            }}
+          >
+            {activeWatchlist.name}
+          </Typography>
+        </Box>
       )}
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ 
+        mb: 4,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        width: '100%'
+      }}>
         <NowPlaying />
       </Box>
       <MediaList />
@@ -225,8 +234,10 @@ export const Home: React.FC = () => {
           onClick={() => setIsAddModalOpen(true)}
           sx={{
             position: 'fixed',
-            bottom: 16,
-            right: 16,
+            bottom: { xs: '16px', sm: '32px' },
+            right: { xs: '16px', sm: '32px' },
+            zIndex: 9999,
+            margin: 0
           }}
         >
           <AddIcon />

@@ -44,7 +44,7 @@ export const handleNewInvite = functions.region("us-central1").firestore
     }
 
     // Create a unique signup link that includes the invite ID
-    const signupLink = `${process.env.APP_URL}/signup?invite=${snapshot.id}`;
+    const signupLink = `https://ur-next.com/signup?invite=${snapshot.id}`;
 
     const msg = {
       to: invite.email,

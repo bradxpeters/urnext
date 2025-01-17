@@ -55,26 +55,30 @@ export const AppHeader: React.FC = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           px: 2,
-          minHeight: '64px'
+          minHeight: '64px',
+          height: '64px'
         }}>
           {/* Logo/Title Section */}
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center',
             position: 'relative',
-            minWidth: '160px'
+            minWidth: '200px',
+            height: '64px',
+            overflow: 'visible'
           }}>
             {!imgError ? (
               <img 
                 src={`${process.env.PUBLIC_URL}/urnext-logo.png`}
                 alt="urNext" 
                 style={{ 
-                  height: '120px',
-                  marginRight: '16px',
+                  height: '200px',
                   cursor: 'pointer',
                   position: 'absolute',
                   top: '-20px',
-                  left: '0'
+                  left: '16px',
+                  maxWidth: '280px',
+                  objectFit: 'contain'
                 }}
                 onError={() => setImgError(true)}
               />

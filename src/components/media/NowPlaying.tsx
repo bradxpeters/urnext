@@ -160,7 +160,7 @@ export const NowPlaying = () => {
   const currentTvShow = activeWatchlist.currentTvShow && convertToSerializedItem(activeWatchlist.currentTvShow, activeWatchlist.id);
 
   return (
-    <Box>
+    <Box sx={{ width: '100%' }}>
       <Typography 
         variant="h4" 
         align="center"
@@ -175,15 +175,17 @@ export const NowPlaying = () => {
           borderBottom: '2px solid #ff0000',
           paddingBottom: '8px',
           width: 'fit-content',
-          margin: '0 auto 32px auto'
+          margin: '0 auto',
+          position: 'relative',
+          left: '-10px'
         }}
       >
         Now Playing
       </Typography>
-      <Box sx={{ display: 'flex', gap: 4 }}>
+      <Box sx={{ display: 'flex', gap: 4, justifyContent: 'center', width: '100%' }}>
         {/* Movies Section */}
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" gutterBottom>Movie</Typography>
+        <Box sx={{ flex: 1, maxWidth: '500px' }}>
+          <Typography variant="h6" gutterBottom align="center">Movie</Typography>
           {currentMovie ? (
             <MediaCard
               item={currentMovie}
@@ -198,8 +200,8 @@ export const NowPlaying = () => {
         </Box>
 
         {/* TV Shows Section */}
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h6" gutterBottom>TV Show</Typography>
+        <Box sx={{ flex: 1, maxWidth: '500px' }}>
+          <Typography variant="h6" gutterBottom align="center">TV Show</Typography>
           {currentTvShow ? (
             <MediaCard
               item={currentTvShow}
