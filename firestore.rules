@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isWatchlistMember(watchlistId) {
+      let watchlist = get(/databases/$(database)/documents/watchlists/$(watchlistId));
+      return isSignedIn() && watchlist != null && request.auth.uid in watchlist.data.users;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    
+    // Watchlists collection
+    match /watchlists/{watchlistId} {
+      allow read: if isSignedIn() && request.auth.uid in resource.data.users;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && request.auth.uid in resource.data.users;
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.users[0];
+    }
+    
+    // Watchlist items collection
+    match /watchlistItems/{itemId} {
+      allow read: if isSignedIn() && isWatchlistMember(resource.data.watchlistId);
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && isWatchlistMember(resource.data.watchlistId);
+    }
+
+    // Pending invites collection
+    match /pendingInvites/{inviteId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isWatchlistMember(request.resource.data.watchlistId);
+      allow delete: if isSignedIn() && (
+        request.auth.uid == resource.data.invitedBy || 
+        resource.data.email == request.auth.token.email
+      );
+    }
+  }
+} 
