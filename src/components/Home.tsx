@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Container, Tooltip, Fab, Typography } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
 import { subscribeToWatchlist, subscribeToWatchlistItems } from '../services/watchlist';
@@ -32,12 +32,35 @@ const convertWatchlistToSerialized = (watchlist: DBWatchlist): SerializedWatchli
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
   const [isLoading, setIsLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const shouldShowLoader = useMinimumLoadingTime(isLoading);
   const currentUser = useSelector((state: RootState) => state.auth.user);
   const activeWatchlist = useSelector((state: RootState) => state.watchlist.activeWatchlist);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  const fromInviteAcceptance = location.state?.fromInviteAcceptance || localStorage.getItem('acceptedWatchlistId');
+  const acceptedWatchlistId = location.state?.acceptedWatchlistId || localStorage.getItem('acceptedWatchlistId');
+
+  useEffect(() => {
+    if (fromInviteAcceptance && acceptedWatchlistId) {
+      console.log('Detected invite acceptance, waiting for watchlist setup...', {
+        acceptedWatchlistId,
+        currentUser,
+        activeWatchlist
+      });
+    }
+  }, [fromInviteAcceptance, acceptedWatchlistId, currentUser, activeWatchlist]);
+
+  // Clear the localStorage item once we have an active watchlist
+  useEffect(() => {
+    if (activeWatchlist && localStorage.getItem('acceptedWatchlistId')) {
+      console.log('Clearing acceptedWatchlistId from localStorage');
+      localStorage.removeItem('acceptedWatchlistId');
+    }
+  }, [activeWatchlist]);
 
   // Store unsubscribe functions in refs
   const unsubscribeRefs = React.useRef<{
@@ -106,6 +129,12 @@ export const Home: React.FC = () => {
       unsubscribeRefs.current.items = undefined;
     }
 
+    console.log('Setting up user document listener...', {
+      userId: currentUser.id,
+      fromInviteAcceptance,
+      acceptedWatchlistId
+    });
+
     // Set up user document listener
     const userUnsubscribe = onSnapshot(
       doc(usersRef, currentUser.id),
@@ -116,16 +145,24 @@ export const Home: React.FC = () => {
         }
 
         const userData = userDoc.data();
+        console.log('User document updated:', {
+          hasActiveWatchlist: !!userData.activeWatchlist,
+          activeWatchlist: userData.activeWatchlist,
+          fromInviteAcceptance,
+          acceptedWatchlistId
+        });
+
         const watchlistId = userData.activeWatchlist;
 
         if (!watchlistId) {
           dispatch(setActiveWatchlist(null));
           dispatch(setWatchlistItems([]));
           setIsLoading(false);
+          setIsInitialLoad(false);
           return;
         }
 
-        const watchlistUnsubscribe = subscribeToWatchlist(watchlistId, (watchlist: DBWatchlist) => {
+        const watchlistUnsubscribe = subscribeToWatchlist(watchlistId, (watchlist) => {
           if (watchlist) {
             const serializedWatchlist = convertWatchlistToSerialized({
               ...watchlist,
@@ -143,6 +180,7 @@ export const Home: React.FC = () => {
             dispatch(setWatchlistItems([]));
           }
           setIsLoading(false);
+          setIsInitialLoad(false);
         });
 
         unsubscribeRefs.current.watchlist = watchlistUnsubscribe;
@@ -150,6 +188,7 @@ export const Home: React.FC = () => {
       (error) => {
         console.error('Error listening to user document:', error);
         setIsLoading(false);
+        setIsInitialLoad(false);
       }
     );
 
@@ -171,7 +210,43 @@ export const Home: React.FC = () => {
     };
   }, [currentUser, dispatch]);
 
-  if (shouldShowLoader) {
+  if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+
+  // Show loading state while waiting for watchlist after invite acceptance
+  if (fromInviteAcceptance && !activeWatchlist && !isInitialLoad) {
+    return (
+      <Box
+        display="flex"
+        flexDirection="column"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+        bgcolor="#1a1a1a"
+      >
+        <PopcornLoader />
+        <Typography variant="body1" sx={{ mt: 2, color: 'text.secondary' }}>
+          Setting up your watchlist...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Only show WatchlistSetup if we're not coming from an invite acceptance
+  if (!activeWatchlist && currentUser && !isInitialLoad && !fromInviteAcceptance) {
+    console.log('Showing WatchlistSetup because:', {
+      noActiveWatchlist: !activeWatchlist,
+      hasCurrentUser: !!currentUser,
+      notInitialLoad: !isInitialLoad,
+      notFromInviteAcceptance: !fromInviteAcceptance,
+      state: location.state,
+      localStorage: localStorage.getItem('acceptedWatchlistId')
+    });
+    return <WatchlistSetup />;
+  }
+
+  if (shouldShowLoader || isInitialLoad) {
     return (
       <Box
         display="flex"
@@ -185,18 +260,17 @@ export const Home: React.FC = () => {
     );
   }
 
-  if (!activeWatchlist && currentUser) {
-    return <WatchlistSetup />;
-  }
-
-  if (!currentUser) {
-    return null;
-  }
-
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+    <Container maxWidth="md" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
       {activeWatchlist && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', mb: 3 }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          width: '100%', 
+          mb: { xs: 1, sm: 3 },
+          px: 2
+        }}>
           <Typography 
             variant="h5" 
             component="h1" 
@@ -204,8 +278,9 @@ export const Home: React.FC = () => {
               color: 'text.secondary',
               fontWeight: 500,
               textAlign: 'center',
-              position: 'relative',
-              left: '-10px'
+              fontSize: { xs: '1.25rem', sm: '1.5rem' },
+              wordBreak: 'break-word',
+              maxWidth: '100%'
             }}
           >
             {activeWatchlist.name}
@@ -213,15 +288,18 @@ export const Home: React.FC = () => {
         </Box>
       )}
       <Box sx={{ 
-        mb: 4,
+        mb: { xs: 2, sm: 4 },
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        width: '100%'
+        width: '100%',
+        px: { xs: 1, sm: 2 }
       }}>
         <NowPlaying />
       </Box>
-      <MediaList />
+      <Box sx={{ px: { xs: 1, sm: 2 } }}>
+        <MediaList />
+      </Box>
       <Tooltip title="Add to watchlist">
         <Fab
           color="primary"
@@ -242,6 +320,17 @@ export const Home: React.FC = () => {
         open={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
       />
+      <Typography 
+        variant="caption" 
+        sx={{ 
+          position: 'fixed', 
+          bottom: '4px', 
+          right: '4px', 
+          opacity: 0.5 
+        }}
+      >
+        v1.0.1
+      </Typography>
     </Container>
   );
 }; 

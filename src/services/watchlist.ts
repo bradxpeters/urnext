@@ -186,8 +186,42 @@ export const inviteToWatchlist = async (email: string, watchlistId: string) => {
 };
 
 // Accept a watchlist invitation
-export const acceptInvitation = async (userId: string, watchlistId: string) => {
+export const acceptInvitation = async (userId: string, watchlistId: string, inviteId?: string): Promise<string> => {
   try {
+    console.log('Starting invitation acceptance process...', { userId, watchlistId, inviteId });
+    
+    // Get current Firebase user
+    const currentUser = auth.currentUser;
+    if (!currentUser || !currentUser.email) {
+      throw new Error('User must be signed in and have an email to accept invitations');
+    }
+
+    // First verify the invite exists and is valid
+    if (!inviteId) {
+      throw new Error('Invite ID is required');
+    }
+
+    console.log('Verifying invite...', inviteId);
+    const inviteRef = doc(pendingInvitesRef, inviteId);
+    const inviteDoc = await getDoc(inviteRef);
+    
+    if (!inviteDoc.exists()) {
+      throw new Error('Invite not found or already accepted');
+    }
+
+    const inviteData = inviteDoc.data();
+    console.log('Found invite data:', inviteData);
+    
+    if (inviteData.email.toLowerCase() !== currentUser.email.toLowerCase()) {
+      throw new Error('This invite is for a different email address');
+    }
+
+    if (inviteData.watchlistId !== watchlistId) {
+      throw new Error('Invite is for a different watchlist');
+    }
+
+    // Get watchlist data
+    console.log('Getting watchlist data...');
     const watchlistRef = doc(watchlistsRef, watchlistId);
     const watchlistDoc = await getDoc(watchlistRef);
 
@@ -196,21 +230,40 @@ export const acceptInvitation = async (userId: string, watchlistId: string) => {
     }
 
     const watchlist = watchlistDoc.data() as DBWatchlist;
-    
-    // Add user to watchlist
-    await updateDoc(watchlistRef, {
-      users: [...watchlist.users, userId],
-    });
+    console.log('Found watchlist:', watchlist.name);
 
-    // Update user's active watchlist and remove invitation
+    // Add user to watchlist - only update the users array
+    console.log('Adding user to watchlist users array...');
+    const updatedUsers = [...watchlist.users];
+    if (!updatedUsers.includes(userId)) {
+      updatedUsers.push(userId);
+      await updateDoc(watchlistRef, {
+        users: updatedUsers
+      });
+    }
+
+    // Delete the invite
+    console.log('Deleting invite document...');
+    await deleteDoc(inviteRef);
+
+    // Update user's active watchlist
+    console.log('Getting user data...');
     const userRef = doc(usersRef, userId);
     const userDoc = await getDoc(userRef);
     const userData = userDoc.data() as DBUser;
     
+    if (!userData) {
+      throw new Error('User data not found');
+    }
+
+    console.log('Updating user document...');
     await updateDoc(userRef, {
       activeWatchlist: watchlistId,
       watchlistInvites: userData.watchlistInvites.filter((id: string) => id !== watchlistId),
     });
+
+    console.log('Invitation acceptance completed successfully');
+    return watchlistId;
   } catch (error) {
     console.error('Error accepting invitation:', error);
     throw error;

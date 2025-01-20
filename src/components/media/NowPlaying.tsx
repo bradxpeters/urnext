@@ -37,20 +37,36 @@ const MediaCard = ({ item, onMarkFinished, onMoveBack, onDelete, type }: MediaCa
       animation: `${glowAnimation} 2s infinite ease-in-out`,
       bgcolor: 'background.paper',
       borderRadius: 2,
+      flexDirection: { xs: 'column', sm: 'row' }
     }}>
       <CardMedia
         component="img"
-        sx={{ width: 140 }}
+        sx={{ 
+          width: { xs: '100%', sm: 140 },
+          height: { xs: 200, sm: 'auto' },
+          objectFit: 'cover'
+        }}
         image={item.posterPath ? `https://image.tmdb.org/t/p/w500${item.posterPath}` : '/placeholder.png'}
         alt={item.title}
       />
       <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="h6">{item.title}</Typography>
+            <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>{item.title}</Typography>
             <Chip label={type === 'movie' ? 'Movie' : 'TV Show'} color="primary" size="small" />
           </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ 
+              mb: 1,
+              display: '-webkit-box',
+              WebkitLineClamp: { xs: 2, sm: 3 },
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}
+          >
             {item.overview}
           </Typography>
           {item.rating && (
@@ -86,12 +102,12 @@ const EmptyCard = ({ type }: { type: 'movie' | 'tv' }) => (
     animation: `${glowAnimation} 2s infinite ease-in-out`,
     bgcolor: 'background.paper',
     borderRadius: 2,
-    height: '200px',
+    height: { xs: '150px', sm: '200px' },
     alignItems: 'center',
     justifyContent: 'center',
   }}>
     <Box sx={{ textAlign: 'center', p: 3 }}>
-      <Typography variant="h6" gutterBottom color="primary">
+      <Typography variant="h6" gutterBottom color="primary" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
         No {type === 'movie' ? 'Movie' : 'TV Show'} Playing
       </Typography>
       <Typography variant="body2" color="text.secondary">
@@ -165,7 +181,7 @@ export const NowPlaying = () => {
         variant="h4" 
         align="center"
         sx={{ 
-          mb: 4,
+          mb: { xs: 2, sm: 4 },
           fontWeight: 'bold',
           color: '#ff0000',
           animation: `${marqueeGlow} 2s infinite ease-in-out`,
@@ -176,16 +192,33 @@ export const NowPlaying = () => {
           paddingBottom: '8px',
           width: 'fit-content',
           margin: '0 auto',
-          position: 'relative',
-          left: '-10px'
+          fontSize: { xs: '1.5rem', sm: '2.125rem' }
         }}
       >
         Now Playing
       </Typography>
-      <Box sx={{ display: 'flex', gap: 4, justifyContent: 'center', width: '100%' }}>
+      <Box sx={{ 
+        display: 'flex', 
+        gap: { xs: 2, sm: 4 }, 
+        justifyContent: 'center', 
+        width: '100%',
+        flexDirection: { xs: 'column', sm: 'row' },
+        px: { xs: 1, sm: 0 }
+      }}>
         {/* Movies Section */}
-        <Box sx={{ flex: 1, maxWidth: '500px' }}>
-          <Typography variant="h6" gutterBottom align="center">Movie</Typography>
+        <Box sx={{ 
+          flex: 1, 
+          maxWidth: { xs: '100%', sm: '500px' },
+          minWidth: { sm: '300px' }
+        }}>
+          <Typography 
+            variant="h6" 
+            gutterBottom 
+            align="center"
+            sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+          >
+            Movie
+          </Typography>
           {currentMovie ? (
             <MediaCard
               item={currentMovie}
@@ -200,8 +233,19 @@ export const NowPlaying = () => {
         </Box>
 
         {/* TV Shows Section */}
-        <Box sx={{ flex: 1, maxWidth: '500px' }}>
-          <Typography variant="h6" gutterBottom align="center">TV Show</Typography>
+        <Box sx={{ 
+          flex: 1, 
+          maxWidth: { xs: '100%', sm: '500px' },
+          minWidth: { sm: '300px' }
+        }}>
+          <Typography 
+            variant="h6" 
+            gutterBottom 
+            align="center"
+            sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+          >
+            TV Show
+          </Typography>
           {currentTvShow ? (
             <MediaCard
               item={currentTvShow}

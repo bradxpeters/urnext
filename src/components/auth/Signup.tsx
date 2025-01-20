@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
@@ -8,10 +8,12 @@ import {
   Alert,
 } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { signInWithGoogle, createOrUpdateUser } from '../../services/firebase';
+import { signInWithGoogle, createOrUpdateUser, DBUser } from '../../services/firebase';
 import { acceptInvitation } from '../../services/watchlist';
 import { PopcornLoader } from '../common/PopcornLoader';
 import GoogleIcon from '@mui/icons-material/Google';
+import { doc, getDoc } from 'firebase/firestore';
+import { pendingInvitesRef, usersRef } from '../../services/firebase';
 
 export const Signup: React.FC = () => {
   const navigate = useNavigate();
@@ -33,11 +35,34 @@ export const Signup: React.FC = () => {
       await createOrUpdateUser(user);
 
       if (inviteId) {
+        console.log('Found invite ID, checking invite...', inviteId);
+        const inviteDoc = await getDoc(doc(pendingInvitesRef, inviteId));
+        
+        if (!inviteDoc.exists()) {
+          throw new Error('Invite not found or already accepted');
+        }
+
+        const inviteData = inviteDoc.data();
+        if (inviteData.email.toLowerCase() !== user.email?.toLowerCase()) {
+          throw new Error('This invite is for a different email address');
+        }
+
         console.log('Accepting watchlist invitation...');
-        await acceptInvitation(user.uid, inviteId);
+        const acceptedWatchlistId = await acceptInvitation(user.uid, inviteData.watchlistId, inviteId);
+        console.log('Successfully accepted invitation to watchlist:', acceptedWatchlistId);
+        
+        // Store in localStorage to handle page refreshes
+        localStorage.setItem('acceptedWatchlistId', acceptedWatchlistId);
+        
+        // Navigate to home with state
+        navigate('/', { 
+          replace: true,
+          state: { 
+            fromInviteAcceptance: true,
+            acceptedWatchlistId 
+          }
+        });
         setSuccess('Successfully joined the watchlist!');
-        // Wait a moment to show the success message
-        await new Promise(resolve => setTimeout(resolve, 1500));
       }
 
       console.log('Navigating to home');

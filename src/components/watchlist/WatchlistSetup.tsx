@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Button, TextField, Typography, Alert, Container } from '@mui/material';
+import { Box, Button, TextField, Typography, Alert, Container, CircularProgress } from '@mui/material';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
 import { createWatchlist, inviteToWatchlist } from '../../services/watchlist';
@@ -70,54 +70,60 @@ export const WatchlistSetup: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="sm">
-      <Box sx={{ mt: 4, p: 3, bgcolor: 'background.paper', borderRadius: 2 }}>
-        <Typography variant="h5" gutterBottom>
-          Create Your Watchlist
+    <Container maxWidth="sm" sx={{ mt: 4 }}>
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: 'center',
+        minHeight: '100vh',
+        position: 'relative'
+      }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Create a Watchlist
         </Typography>
-        
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
-        
-        {success && (
-          <Alert severity="success" sx={{ mb: 2 }}>
-            {success}
-          </Alert>
-        )}
-
-        <TextField
-          fullWidth
-          label="Watchlist Name"
-          value={watchlistName}
-          onChange={(e) => setWatchlistName(e.target.value)}
-          margin="normal"
-          variant="outlined"
-          disabled={isLoading}
-        />
-
-        <TextField
-          fullWidth
-          label="Partner's Email (Optional)"
-          value={partnerEmail}
-          onChange={(e) => setPartnerEmail(e.target.value)}
-          margin="normal"
-          variant="outlined"
-          disabled={isLoading}
-          helperText="Invite your partner to join your watchlist"
-        />
-
-        <Button
-          fullWidth
-          variant="contained"
-          onClick={handleCreateWatchlist}
-          disabled={isLoading || !watchlistName.trim()}
-          sx={{ mt: 2 }}
+        <Typography variant="body1" sx={{ mb: 4, textAlign: 'center' }}>
+          Start by creating a watchlist. You can invite your partner to join later.
+        </Typography>
+        <Box component="form" onSubmit={handleCreateWatchlist} sx={{ width: '100%' }}>
+          <TextField
+            fullWidth
+            label="Watchlist Name"
+            variant="outlined"
+            value={watchlistName}
+            onChange={(e) => setWatchlistName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <TextField
+            fullWidth
+            label="Partner's Email (Optional)"
+            value={partnerEmail}
+            onChange={(e) => setPartnerEmail(e.target.value)}
+            margin="normal"
+            variant="outlined"
+            disabled={isLoading}
+            helperText="Invite your partner to join your watchlist"
+          />
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            disabled={isLoading}
+            sx={{ mt: 2 }}
+          >
+            {isLoading ? <CircularProgress size={24} /> : 'Create Watchlist'}
+          </Button>
+        </Box>
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            position: 'fixed', 
+            bottom: '4px', 
+            right: '4px', 
+            opacity: 0.5 
+          }}
         >
-          Create Watchlist
-        </Button>
+          v1.0.2
+        </Typography>
       </Box>
     </Container>
   );
