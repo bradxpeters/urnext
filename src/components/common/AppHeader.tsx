@@ -63,27 +63,32 @@ export const AppHeader: React.FC = () => {
             display: 'flex', 
             alignItems: 'center',
             position: 'relative',
-            minWidth: '200px',
+            minWidth: { xs: '120px', sm: '200px' },
             height: '64px',
             overflow: 'visible'
           }}>
             {!imgError ? (
-              <img 
+              <Box
+                component="img"
                 src={`${process.env.PUBLIC_URL}/urnext-logo.png`}
-                alt="urNext" 
-                style={{ 
-                  height: '200px',
+                alt="urNext"
+                sx={{
+                  height: 'auto',
                   cursor: 'pointer',
                   position: 'absolute',
                   top: '-20px',
                   left: '16px',
-                  maxWidth: '280px',
-                  objectFit: 'contain'
+                  width: { xs: '160px', sm: '280px' },
+                  maxWidth: '100%',
+                  transform: { xs: 'scale(0.8)', sm: 'none' },
+                  transformOrigin: 'left center'
                 }}
-                onError={() => setImgError(true)}
               />
             ) : (
-              <Typography variant="h4" component="div" sx={{ mr: 2 }}>
+              <Typography variant="h4" component="div" sx={{ 
+                mr: 2,
+                fontSize: { xs: '1.5rem', sm: '2.125rem' }
+              }}>
                 urNext
               </Typography>
             )}
@@ -94,7 +99,8 @@ export const AppHeader: React.FC = () => {
             flex: 1, 
             display: 'flex', 
             alignItems: 'center',
-            justifyContent: 'center'
+            justifyContent: 'center',
+            ml: { xs: 2, sm: 0 }
           }}>
             <PartnerStatus />
           </Box>

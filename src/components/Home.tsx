@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Container, Tooltip, Fab, Typography } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Box, Container, Tooltip, Fab, Typography, IconButton } from '@mui/material';
+import { Add as AddIcon, HelpOutline } from '@mui/icons-material';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { RootState } from '../store/store';
@@ -261,30 +261,77 @@ export const Home: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="md" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+    <Container maxWidth="md" sx={{ 
+      mt: { xs: 10, sm: 4 },
+      mb: 4,
+      pt: { xs: 2, sm: 0 }
+    }}>
       {activeWatchlist && (
         <Box sx={{ 
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center', 
           width: '100%', 
-          mb: { xs: 1, sm: 3 },
-          px: 2
+          mb: { xs: 2, sm: 3 },
+          px: 2,
+          position: 'relative',
+          zIndex: 1
         }}>
-          <Typography 
-            variant="h5" 
-            component="h1" 
-            sx={{ 
-              color: 'text.secondary',
-              fontWeight: 500,
-              textAlign: 'center',
-              fontSize: { xs: '1.25rem', sm: '1.5rem' },
-              wordBreak: 'break-word',
-              maxWidth: '100%'
-            }}
-          >
-            {activeWatchlist.name}
-          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1 
+          }}>
+            <Typography 
+              variant="h5" 
+              component="h1" 
+              sx={{ 
+                color: 'text.secondary',
+                fontWeight: 500,
+                textAlign: 'center',
+                fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                wordBreak: 'break-word',
+                maxWidth: '100%',
+                mt: { xs: 1, sm: 0 }
+              }}
+            >
+              {activeWatchlist.name}
+            </Typography>
+            <Tooltip 
+              title={
+                <Box sx={{ p: 1 }}>
+                  <Typography variant="body2" gutterBottom>
+                    This is a turn-based watchlist shared between you and your partner.
+                  </Typography>
+                  <Typography variant="body2" gutterBottom>
+                    • Each person can add one movie and one TV show at a time
+                  </Typography>
+                  <Typography variant="body2" gutterBottom>
+                    • After you add something, wait for your partner to add their choice before adding again
+                  </Typography>
+                  <Typography variant="body2">
+                    • Click the play button (▶️) on an item to move it to "Now Playing"
+                  </Typography>
+                </Box>
+              }
+              arrow
+              placement="right"
+              enterTouchDelay={0}
+              leaveTouchDelay={5000}
+            >
+              <IconButton 
+                size="small" 
+                color="inherit"
+                sx={{ 
+                  '&:hover': { 
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)' 
+                  }
+                }}
+              >
+                <HelpOutline sx={{ fontSize: '1.2rem', opacity: 0.7 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
       )}
       <Box sx={{ 

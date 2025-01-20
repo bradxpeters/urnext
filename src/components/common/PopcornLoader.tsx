@@ -2,20 +2,20 @@ import React from 'react';
 import { Box, keyframes } from '@mui/material';
 
 // Create multiple popcorn animations with different trajectories
-const createPopAnimation = (x: number, height: number) => keyframes`
+const createPopAnimation = (x: number, height: number, startX: number) => keyframes`
   0% {
-    transform: translate(0, 0) rotate(0deg) scale(0.8);
+    transform: translate(${startX}px, 0) rotate(0deg) scale(0.8);
     opacity: 0;
   }
   15% {
-    transform: translate(${x * 0.2}px, ${-height * 0.3}px) rotate(${x > 0 ? 90 : -90}deg) scale(0.9);
+    transform: translate(${startX + x * 0.2}px, ${-height * 0.3}px) rotate(${x > 0 ? 90 : -90}deg) scale(0.9);
     opacity: 1;
   }
   50% {
-    transform: translate(${x * 0.6}px, ${-height * 0.8}px) rotate(${x > 0 ? 180 : -180}deg) scale(1);
+    transform: translate(${startX + x * 0.6}px, ${-height * 0.8}px) rotate(${x > 0 ? 180 : -180}deg) scale(1);
   }
   100% {
-    transform: translate(${x}px, ${-height}px) rotate(${x > 0 ? 360 : -360}deg) scale(0.8);
+    transform: translate(${startX + x}px, ${-height}px) rotate(${x > 0 ? 360 : -360}deg) scale(0.8);
     opacity: 0;
   }
 `;
@@ -30,29 +30,27 @@ const bowlBounce = keyframes`
   }
 `;
 
-const Popcorn = ({ delay, x, height }: { delay: number; x: number; height: number }) => {
-    const popAnimation = createPopAnimation(x, height);
+const Popcorn = ({ delay, x, height, startX }: { delay: number; x: number; height: number; startX: number }) => {
+  const popAnimation = createPopAnimation(x, height, startX);
   
-    return (
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: '50px', // Align with the top rim of the bowl
-          left: '50%', // Start at the horizontal center of the bowl
-          width: '8px',
-          height: '8px',
-          backgroundColor: '#fff',
-          borderRadius: '50%',
-          animation: `${popAnimation} 1.5s ${delay}s infinite`,
-          boxShadow: '0 0 2px rgba(0,0,0,0.3)',
-          transformOrigin: 'center bottom', // Originate from the center bottom
-          transform: 'translateX(-50%)', // Adjust horizontally to center
-        }}
-      />
-    );
-  };
-  
-  
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        bottom: '50px', // Align with the top rim of the bowl
+        left: '50%', // Start at the horizontal center of the bowl
+        width: '8px',
+        height: '8px',
+        backgroundColor: '#fff',
+        borderRadius: '50%',
+        animation: `${popAnimation} 1.5s ${delay}s infinite`,
+        boxShadow: '0 0 2px rgba(0,0,0,0.3)',
+        transformOrigin: 'center bottom', // Originate from the center bottom
+        transform: 'translateX(-50%)', // Adjust horizontally to center
+      }}
+    />
+  );
+};
 
 export const PopcornLoader = () => {
   // Generate random trajectories for popcorn pieces
@@ -60,6 +58,7 @@ export const PopcornLoader = () => {
     delay: i * 0.12,
     x: Math.random() * 100 - 50, // Random x between -50 and 50
     height: Math.random() * 30 + 40, // Random height between 40 and 70
+    startX: Math.random() * 60 - 30, // Random starting point within the bowl (-30 to 30)
   }));
 
   return (
@@ -111,6 +110,7 @@ export const PopcornLoader = () => {
             delay={piece.delay}
             x={piece.x}
             height={piece.height}
+            startX={piece.startX}
           />
         ))}
       </Box>
