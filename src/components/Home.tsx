@@ -91,9 +91,6 @@ export const Home: React.FC = () => {
         dispatch(setUser(null));
         dispatch(setActiveWatchlist(null));
         dispatch(setWatchlistItems([]));
-
-        // Finally navigate
-        navigate('/login', { replace: true });
       }
     });
 
@@ -106,11 +103,16 @@ export const Home: React.FC = () => {
         unsubscribeRefs.current.auth = undefined;
       }
     };
-  }, [dispatch, navigate]);
+  }, [dispatch]);
+
+  // Early return if no user in Redux
+  if (!currentUser) {
+    return <Navigate to="/login" replace />;
+  }
 
   // Effect for user document subscription
   useEffect(() => {
-    if (!currentUser || !auth.currentUser) {
+    if (!currentUser) {
       setIsLoading(false);
       return;
     }
@@ -209,10 +211,6 @@ export const Home: React.FC = () => {
       }
     };
   }, [currentUser, dispatch]);
-
-  if (!currentUser) {
-    return <Navigate to="/login" />;
-  }
 
   // Show loading state while waiting for watchlist after invite acceptance
   if (fromInviteAcceptance && !activeWatchlist && !isInitialLoad) {

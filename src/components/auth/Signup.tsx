@@ -63,10 +63,11 @@ export const Signup: React.FC = () => {
           }
         });
         setSuccess('Successfully joined the watchlist!');
+      } else {
+        // Only navigate to home if there was no invite
+        console.log('No invite, navigating to home');
+        navigate('/', { replace: true });
       }
-
-      console.log('Navigating to home');
-      navigate('/', { replace: true });
     } catch (error: any) {
       console.error('Sign-up error:', error);
       if (error.code === 'auth/popup-closed-by-user') {

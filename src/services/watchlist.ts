@@ -295,10 +295,71 @@ export const subscribeToWatchlistItems = (watchlistId: string, callback: (items:
   }
 
   console.log('Setting up watchlist items subscription for:', watchlistId);
-  const itemsQuery = query(watchlistItemsRef, where('watchlistId', '==', watchlistId));
+  const itemsQuery = query(
+    watchlistItemsRef, 
+    where('watchlistId', '==', watchlistId)
+  );
   
   return onSnapshot(itemsQuery, (snapshot) => {
     console.log('Watchlist items snapshot received, docs:', snapshot.docs.length);
+    if (snapshot.docs.length > 0) {
+      console.log('First doc data:', snapshot.docs[0].data());
+    }
+    const items = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        // Convert to SerializedWatchlistItem with proper timestamp handling
+        const serializedItem: SerializedWatchlistItem = {
+          id: doc.id,
+          watchlistId: data.watchlistId,
+          title: data.title,
+          posterPath: data.posterPath,
+          overview: data.overview,
+          type: data.type,
+          addedBy: data.addedBy,
+          addedAt: data.addedAt && typeof data.addedAt.toMillis === 'function' 
+            ? data.addedAt.toMillis() 
+            : data.addedAt || Date.now(),
+        };
+
+        // Add optional fields if they exist
+        if (data.rating !== undefined) serializedItem.rating = data.rating;
+        if (data.comment !== undefined) serializedItem.comment = data.comment;
+        if (data.finishedAt) {
+          serializedItem.finishedAt = typeof data.finishedAt.toMillis === 'function'
+            ? data.finishedAt.toMillis()
+            : data.finishedAt;
+        }
+
+        return serializedItem;
+      })
+      .filter(item => !item.finishedAt); // Filter out items that have a finishedAt timestamp
+    
+    console.log('Processed watchlist items:', items);
+    callback(items);
+  }, (error) => {
+    console.error('Error in watchlist items subscription:', error);
+    callback([]);
+  });
+};
+
+// Subscribe to finished items
+export const subscribeToFinishedItems = (watchlistId: string, callback: (items: SerializedWatchlistItem[]) => void) => {
+  if (!watchlistId) {
+    console.error('Invalid watchlistId provided to subscribeToFinishedItems');
+    callback([]);
+    return () => {}; // Return empty unsubscribe function
+  }
+
+  console.log('Setting up finished items subscription for:', watchlistId);
+  const itemsQuery = query(
+    watchlistItemsRef, 
+    where('watchlistId', '==', watchlistId),
+    where('finishedAt', '!=', null) // Only get finished items
+  );
+  
+  return onSnapshot(itemsQuery, (snapshot) => {
+    console.log('Finished items snapshot received, docs:', snapshot.docs.length);
     const items = snapshot.docs.map(doc => {
       const data = doc.data();
       // Convert to SerializedWatchlistItem with proper timestamp handling
@@ -310,22 +371,26 @@ export const subscribeToWatchlistItems = (watchlistId: string, callback: (items:
         overview: data.overview,
         type: data.type,
         addedBy: data.addedBy,
-        addedAt: data.addedAt ? data.addedAt.toMillis() : Date.now(),
+        addedAt: data.addedAt && typeof data.addedAt.toMillis === 'function' 
+          ? data.addedAt.toMillis() 
+          : data.addedAt || Date.now(),
       };
 
       // Add optional fields if they exist
       if (data.rating !== undefined) serializedItem.rating = data.rating;
       if (data.comment !== undefined) serializedItem.comment = data.comment;
-      if (data.finishedAt && data.finishedAt !== null) {
-        serializedItem.finishedAt = data.finishedAt.toMillis();
+      if (data.finishedAt) {
+        serializedItem.finishedAt = typeof data.finishedAt.toMillis === 'function'
+          ? data.finishedAt.toMillis()
+          : data.finishedAt;
       }
 
       return serializedItem;
     });
-    console.log('Processed watchlist items:', items.length);
+    console.log('Processed finished items:', items.length);
     callback(items);
   }, (error) => {
-    console.error('Error in watchlist items subscription:', error);
+    console.error('Error in finished items subscription:', error);
     callback([]);
   });
 };
@@ -335,6 +400,21 @@ export const addItemToWatchlist = async (watchlistId: string, item: MediaItem) =
   try {
     if (!watchlistId) {
       throw new Error('watchlistId is required');
+    }
+
+    // Get current watchlist state to check turns
+    const watchlistRef = doc(watchlistsRef, watchlistId);
+    const watchlistDoc = await getDoc(watchlistRef);
+    if (!watchlistDoc.exists()) {
+      throw new Error('Watchlist not found');
+    }
+
+    const watchlist = watchlistDoc.data() as DBWatchlist;
+    const lastAddedBy = item.type === 'movie' ? watchlist.lastMovieAddedBy : watchlist.lastTvShowAddedBy;
+
+    // Check if it's the user's turn
+    if (lastAddedBy === item.addedBy) {
+      throw new Error(`It's not your turn to add a ${item.type}. Let your partner choose next!`);
     }
 
     // Create watchlist item data, omitting undefined values
@@ -355,15 +435,11 @@ export const addItemToWatchlist = async (watchlistId: string, item: MediaItem) =
     if (item.comment !== undefined) {
       watchlistItemData.comment = item.comment;
     }
-    if (item.finishedAt !== undefined) {
-      watchlistItemData.finishedAt = Timestamp.fromMillis(item.finishedAt);
-    }
 
     console.log('Adding item to watchlist:', { watchlistId, watchlistItemData });
     await addDoc(watchlistItemsRef, watchlistItemData);
 
     // Update lastAddedBy in watchlist
-    const watchlistRef = doc(watchlistsRef, watchlistId);
     await updateDoc(watchlistRef, {
       lastAddedBy: item.addedBy,
       ...(item.type === 'movie' 
@@ -468,20 +544,27 @@ export const markAsFinished = async (watchlistId: string, mediaType: 'movie' | '
       throw new Error('No item currently playing');
     }
 
-    // Create finished item
-    const finishedItem = {
-      ...currentItem,
-      finishedAt: serverTimestamp() as Timestamp,
-    };
+    // Find the original watchlist item
+    const itemsQuery = query(
+      watchlistItemsRef,
+      where('watchlistId', '==', watchlistId),
+      where('title', '==', currentItem.title),
+      where('type', '==', mediaType),
+      where('finishedAt', '==', null)
+    );
+    
+    const itemSnapshot = await getDocs(itemsQuery);
+    if (itemSnapshot.empty) {
+      throw new Error('Original watchlist item not found');
+    }
 
-    // Add to finished items collection
-    await addDoc(watchlistItemsRef, {
-      ...finishedItem,
-      watchlistId,
-      status: 'finished'
+    // Update the original item with finishedAt timestamp
+    const itemDoc = itemSnapshot.docs[0];
+    await updateDoc(itemDoc.ref, {
+      finishedAt: serverTimestamp()
     });
 
-    // Clear the current item
+    // Clear the current item from the watchlist
     await updateCurrentlyWatching(watchlistId, null, mediaType);
   } catch (error) {
     console.error('Error marking item as finished:', error);
